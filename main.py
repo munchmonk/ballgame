@@ -1,5 +1,6 @@
 import pygame
 import sys
+import math
 
 pygame.init()
 
@@ -17,17 +18,21 @@ class Ball(pygame.sprite.Sprite):
         self.image = Ball.IMG
         self.rect = self.image.get_rect(topleft=(x, y))
 
-        self.dx = 1
-        self.dy = 0.5
+        self.dx = 1.6
+        self.dy = 1.3
 
     def update(self, dt, tiles):
-        # move
+        # X axis first
+        # movement
         step_x = self.dx * Ball.STEP * (dt / 1000.0)
         step_x = int(step_x) if step_x >= 1 else step_x
-        step_y = self.dy * Ball.STEP * (dt / 1000.0)
-        step_y = int(step_y) if step_y >= 1 else step_y
         self.rect.x += step_x
-        self.rect.y += step_y
+
+        # bounce off walls
+        if pygame.sprite.spritecollide(self, tiles, False):
+            while pygame.sprite.spritecollide(self, tiles, False):
+                self.rect.x += (-math.copysign(1, self.dx))
+            self.dx *= -1
 
         # bounce off screen edges
         if self.rect.left <= 0:
@@ -36,96 +41,26 @@ class Ball(pygame.sprite.Sprite):
         if self.rect.right >= WIDTH:
             self.rect.right = WIDTH
             self.dx *= -1
+
+        # Y axis second
+        # movement
+        step_y = self.dy * Ball.STEP * (dt / 1000.0)
+        step_y = int(step_y) if step_y >= 1 else step_y
+        self.rect.y += step_y
+
+        # bounce off walls
+        if pygame.sprite.spritecollide(self, tiles, False):
+            while pygame.sprite.spritecollide(self, tiles, False):
+                self.rect.y += (-math.copysign(1, self.dy))
+            self.dy *= -1
+
+        # bounce off screen edges
         if self.rect.top < 0:
             self.rect.top = 0
             self.dy *= -1
-        if self.rect.bottom >= HEIGHT:
+        if self.rect.bottom > HEIGHT:
             self.rect.bottom = HEIGHT
             self.dy *= -1
-
-        # bounce off walls
-        hit_walls = pygame.sprite.spritecollide(self, tiles, False)
-        if len(hit_walls) > 0:
-            new_dx = self.dx
-            new_dy = self.dy
-
-
-
-
-
-            # NON FUNGE, devo trovare una maniera furba per far rimbalzare la palla
-            # -------------------
-            # -------------------
-            # -------------------
-            # -------------------
-
-
-
-            for wall in hit_walls:
-                if self.dx > 0 and wall.rect.left <= self.rect.right:
-                    new_dx *= -1
-                    print("1")
-                if self.dx < 0 and wall.rect.right >= self.rect.left:
-                    new_dx *= -1
-                    print("2")
-                if self.dy > 0 and wall.rect.top <= self.rect.bottom:
-                    new_dy *= -1
-                    print("3")
-                if self.dy < 0 and wall.rect.bottom >= self.rect.top:
-                    new_dy *= -1
-                    print("4")
-
-
-
-
-
-            # -------------------
-            # -------------------
-            # -------------------
-            # -------------------
-            # -------------------
-            # -------------------
-
-
-
-
-
-
-
-
-
-            # reassign dx and dy
-            # for wall in hit_walls:
-            #     if self.dx > 0 and (wall.rect.collidepoint(self.rect.topright) or
-            #         wall.rect.collidepoint(self.rect.midright) or
-            #         wall.rect.collidepoint(self.rect.bottomright)):
-            #         new_dx *= -1
-            #     if self.dx < 0 and (wall.rect.collidepoint(self.rect.topleft) or
-            #         wall.rect.collidepoint(self.rect.midleft) or
-            #         wall.rect.collidepoint(self.rect.bottomleft)):
-            #         new_dx *= -1
-            #     if self.dy > 0 and (wall.rect.collidepoint(self.rect.bottomleft) or
-            #         wall.rect.collidepoint(self.rect.midbottom) or
-            #         wall.rect.collidepoint(self.rect.bottomright)):
-            #         new_dy *= -1
-            #     if self.dy < 0 and (wall.rect.collidepoint(self.rect.topleft) or
-            #         wall.rect.collidepoint(self.rect.midtop) or
-            #         wall.rect.collidepoint(self.rect.topright)):
-            #         new_dy *= -1
-
-            # move back
-            while pygame.sprite.spritecollide(self, tiles, False):
-                if self.dx > 0:
-                    self.rect.x -= 1
-                elif self.dx < 0:
-                    self.rect.x += 1
-                if self.dy > 0:
-                    self.rect.y -= 1
-                elif self.dy < 0:
-                    self.rect.y += 1
-
-            self.dx = new_dx
-            self.dy = new_dy
 
 
 class Player(pygame.sprite.Sprite):
@@ -138,22 +73,43 @@ class Player(pygame.sprite.Sprite):
         self.image = Player.IMG
         self.rect = self.image.get_rect(topleft=(x, y))
 
-        self.up = False
         self.left = False
-        self.down = False
         self.right = False
+        self.up = False
+        self.down = False
 
-    def update(self, dt):
+    def update(self, dt, tiles):
         step = Player.STEP * (dt / 1000.0)
         step = int(step) if step >= 1 else step
-        if self.up:
-            self.rect.y -= step
+
         if self.left:
             self.rect.x -= step
-        if self.down:
-            self.rect.y += step
+            while pygame.sprite.spritecollide(self, tiles, False):
+                self.rect.x += 1
+            if self.rect.left < 0:
+                self.rect.left = 0
+
         if self.right:
             self.rect.x += step
+            while pygame.sprite.spritecollide(self, tiles, False):
+                self.rect.x -= 1
+            if self.rect.right > WIDTH:
+                self.rect.right = WIDTH
+
+        if self.up:
+            self.rect.y -= step
+            while pygame.sprite.spritecollide(self, tiles, False):
+                self.rect.y += 1
+            if self.rect.top < 0:
+                self.rect.top = 0
+
+        if self.down:
+            self.rect.y += step
+            while pygame.sprite.spritecollide(self, tiles, False):
+                self.rect.y -= 1
+            if self.rect.bottom > HEIGHT:
+                self.rect.bottom = HEIGHT
+
 
 
 
@@ -179,14 +135,19 @@ class Game:
         self.tiles.add(Tile(20, 20))
         self.tiles.add(Tile(200, 20))
         self.tiles.add(Tile(450, 480))
+        self.tiles.add(Tile(0, 480))
         self.tiles.add(Tile(300, 260))
         self.tiles.add(Tile(160, 340))
         self.tiles.add(Tile(600, 380))
+        self.tiles.add(Tile(0, 380))
+        self.tiles.add(Tile(80, 500))
+        self.tiles.add(Tile(100, 20))
         self.players = pygame.sprite.Group()
         self.player1 = Player(300, 30)
         self.players.add(self.player1)
         self.balls = pygame.sprite.Group()
         self.balls.add(Ball(100, 400))
+        self.balls.add(Ball(300, 500))
 
         self.clock = pygame.time.Clock()
 
@@ -221,7 +182,7 @@ class Game:
 
 
             self.tiles.update(dt)
-            self.players.update(dt)
+            self.players.update(dt, self.tiles)
             self.balls.update(dt, self.tiles)
 
             self.screen.blit(self.background, (0, 0))
