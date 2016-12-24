@@ -1,3 +1,8 @@
+# NEXT ON THE LIST:
+# add goals/victory
+# add intermediate goals to collect before being able to reach final goal
+
+
 import pygame
 import sys
 import math
@@ -13,14 +18,14 @@ class Ball(pygame.sprite.Sprite):
     IMG = pygame.image.load("ball.png")
     STEP = 300
 
-    def __init__(self, x, y, *groups):
+    def __init__(self, x, y, dx, dy, *groups):
         super(Ball, self).__init__(*groups)
 
         self.image = Ball.IMG
         self.rect = self.image.get_rect(topleft=(x, y))
 
-        self.dx = 1.6
-        self.dy = 1.3
+        self.dx = dx
+        self.dy = dy
 
     def update(self, dt, tiles):
         # X axis first
@@ -162,8 +167,14 @@ class Game:
                 if char == "1":
                     self.player1 = Player(x, y)
                     self.players.add(self.player1)
-                if char == "O":
-                    self.balls.add(Ball(x, y))
+                if char == "h":
+                    self.balls.add(Ball(x, y, -1, 0))
+                if char == "H":
+                    self.balls.add(Ball(x, y, 1, 0))
+                if char == "v":
+                    self.balls.add(Ball(x, y, 0, -1))
+                if char == "V":
+                    self.balls.add(Ball(x, y, 0, 1))
                 x += TILESIZE
             x = 0
             y += TILESIZE
@@ -213,7 +224,6 @@ class Game:
             self.balls.draw(self.screen)
 
             pygame.display.flip()
-
 
 
 if __name__ == "__main__":
