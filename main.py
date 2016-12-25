@@ -4,13 +4,18 @@ import math
 import random
 import time
 
-pygame.init()
-
 WIDTH = 800
 HEIGHT = 600
 TILESIZE = 40
+PLAY_HEIGHT = HEIGHT - TILESIZE
 PLAYER1 = 0
 PLAYER2 = 1
+FPS = 60
+
+PLAYER1_HOR_AXIS = 6
+PLAYER1_VER_AXIS = 7
+PLAYER2_HOR_AXIS = 2
+PLAYER2_VER_AXIS = 3
 
 
 class Star(pygame.sprite.Sprite):
@@ -60,8 +65,8 @@ class Star(pygame.sprite.Sprite):
             self.dy *= -1
             change = True
 
-        if self.rect.bottom >= HEIGHT - TILESIZE:
-            self.rect.bottom = HEIGHT - TILESIZE
+        if self.rect.bottom >= PLAY_HEIGHT - TILESIZE:
+            self.rect.bottom = PLAY_HEIGHT - TILESIZE
             self.dy *= -1
             change = True
 
@@ -120,8 +125,8 @@ class Ball(pygame.sprite.Sprite):
         if self.rect.top < 0:
             self.rect.top = 0
             self.dy *= -1
-        if self.rect.bottom > HEIGHT:
-            self.rect.bottom = HEIGHT
+        if self.rect.bottom > PLAY_HEIGHT:
+            self.rect.bottom = PLAY_HEIGHT
             self.dy *= -1
 
         # collision with other balls
@@ -187,8 +192,8 @@ class Player(pygame.sprite.Sprite):
             self.rect.y += step
             while pygame.sprite.spritecollide(self, tiles, False):
                 self.rect.y -= 1
-            if self.rect.bottom > HEIGHT:
-                self.rect.bottom = HEIGHT
+            if self.rect.bottom > PLAY_HEIGHT:
+                self.rect.bottom = PLAY_HEIGHT
 
         if pygame.sprite.spritecollide(self, balls, False):
             self.rect.topleft = (self.spawnpoint[0], self.spawnpoint[1])
@@ -197,7 +202,7 @@ class Player(pygame.sprite.Sprite):
         if pygame.sprite.spritecollide(self, stars, True):
             self.points += 1
             if self.points >= 3:
-                print("VICTORY!!!")
+                print("VICTORY!")
 
 
 class Tile(pygame.sprite.Sprite):
@@ -211,9 +216,8 @@ class Tile(pygame.sprite.Sprite):
 
 
 class Game:
-    FPS = 60
-
     def __init__(self):
+        pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.background = pygame.image.load("background.png")
         pygame.display.set_caption("Ball Game")
@@ -226,6 +230,12 @@ class Game:
         self.stars = pygame.sprite.Group()
 
         self.clock = pygame.time.Clock()
+
+        pygame.joystick.init()
+        self.stick = pygame.joystick.Joystick(0)
+        self.stick.init()
+        self.stick_buttons = self.stick.get_numbuttons()
+        self.stick_axes = self.stick.get_numaxes()
 
     def setup(self):
         level_file = "level1.txt"
@@ -269,7 +279,7 @@ class Game:
         self.setup()
 
         while True:
-            dt = self.clock.tick(Game.FPS)
+            dt = self.clock.tick(FPS)
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -313,9 +323,50 @@ class Game:
                     if event.key == pygame.K_RIGHT:
                         self.player2.right = False
 
+                elif event.type == pygame.JOYAXISMOTION:
+                    if self.stick.get_axis(PLAYER1_HOR_AXIS) < -0.9:
+                        self.player1.left = True
+                    else:
+                        self.player1.left = False
+
+                    if self.stick.get_axis(PLAYER1_HOR_AXIS) > 0.9:
+                        self.player1.right = True
+                    else:
+                        self.player1.right = False
+
+                    if self.stick.get_axis(PLAYER1_VER_AXIS) < -0.9:
+                        self.player1.up = True
+                    else:
+                        self.player1.up = False
+
+                    if self.stick.get_axis(PLAYER1_VER_AXIS) > 0.9:
+                        self.player1.down = True
+                    else:
+                        self.player1.down = False
+
+                if self.stick.get_axis(PLAYER2_HOR_AXIS) < -0.9:
+                        self.player2.left = True
+                else:
+                    self.player2.left = False
+
+                if self.stick.get_axis(PLAYER2_HOR_AXIS) > 0.9:
+                    self.player2.right = True
+                else:
+                    self.player2.right = False
+
+                if self.stick.get_axis(PLAYER2_VER_AXIS) < -0.9:
+                    self.player2.up = True
+                else:
+                    self.player2.up = False
+
+                if self.stick.get_axis(PLAYER2_VER_AXIS) > 0.9:
+                    self.player2.down = True
+                else:
+                    self.player2.down = False
+
             if len(self.stars) == 0:
                 self.stars.add(Star(random.randint(TILESIZE, WIDTH - TILESIZE),
-                                    random.randint(TILESIZE, HEIGHT - TILESIZE)))
+                                    random.randint(TILESIZE, PLAY_HEIGHT - TILESIZE)))
 
             self.tiles.update(dt)
             self.players.update(dt, self.tiles, self.balls, self.stars)
