@@ -10,7 +10,9 @@ TILESIZE = 40
 PLAY_HEIGHT = HEIGHT - TILESIZE
 PLAYER1 = 0
 PLAYER2 = 1
+INVIS = -1
 FPS = 60
+PAUSETIME = 3
 
 PLAYER1_HOR_AXIS = 6
 PLAYER1_VER_AXIS = 7
@@ -144,8 +146,11 @@ class Ball(pygame.sprite.Sprite):
 
 class Player(pygame.sprite.Sprite):
     IMG = {PLAYER1: pygame.image.load("player1.png"),
-           PLAYER2: pygame.image.load("player2.png")}
+           PLAYER2: pygame.image.load("player2.png"),
+           INVIS:   pygame.image.load("invis_player.png")}
     STEP = 160
+    INV_TIME = 240
+    BLINK_INTERVAL = 0.2
 
     def __init__(self, x, y, side, *groups):
         super(Player, self).__init__(*groups)
@@ -161,7 +166,11 @@ class Player(pygame.sprite.Sprite):
         self.up = False
         self.down = False
 
-        self.points = 0
+        self.score = 0
+        self.winner = False
+        self.invulnerable = False
+        self.invulnerable_time = 0
+        self.invulnerable_blink = 0
 
     def update(self, dt, tiles, balls, stars):
         step = Player.STEP * (dt / 1000.0)
@@ -195,14 +204,25 @@ class Player(pygame.sprite.Sprite):
             if self.rect.bottom > PLAY_HEIGHT:
                 self.rect.bottom = PLAY_HEIGHT
 
-        if pygame.sprite.spritecollide(self, balls, False):
+        if self.invulnerable and time.time() - self.invulnerable_time >= Player.INV_TIME:
+            self.invulnerable = False
+            self.image = Player.IMG[self.side]
+
+        if self.invulnerable and time.time() - self.invulnerable_blink >= Player.BLINK_INTERVAL:
+            self.image = Player.IMG[self.side] if self.image == Player.IMG[INVIS] else Player.IMG[INVIS]
+            self.invulnerable_blink = time.time()
+
+        if pygame.sprite.spritecollide(self, balls, False) and not self.invulnerable:
             self.rect.topleft = (self.spawnpoint[0], self.spawnpoint[1])
-            self.points = 0
+            self.score = 0
+            self.invulnerable = True
+            self.invulnerable_time = time.time()
+            self.invulnerable_blink = 0
 
         if pygame.sprite.spritecollide(self, stars, True):
-            self.points += 1
-            if self.points >= 3:
-                print("VICTORY!")
+            self.score += 1
+            if self.score >= 3:
+                self.winner = True
 
 
 class Tile(pygame.sprite.Sprite):
@@ -230,6 +250,8 @@ class Game:
         self.stars = pygame.sprite.Group()
 
         self.clock = pygame.time.Clock()
+        self.paused = False
+        self.pause_time = 0
 
         pygame.joystick.init()
         self.stick = pygame.joystick.Joystick(0)
@@ -275,6 +297,45 @@ class Game:
             x = 0
             y += TILESIZE
 
+    def showwinner(self, player):
+        sansbold = pygame.font.Font("freesansbold.ttf", 100)
+        winner_string = "Player "
+        if player.side == PLAYER1:
+            winner_string += "1 wins!!!"
+        if player.side == PLAYER2:
+            winner_string += "2 wins!!!"
+
+        final = sansbold.render(winner_string, True, (0, 0, 0))
+        self.screen.blit(final, final.get_rect(center=(WIDTH // 2, HEIGHT // 2)))
+
+    def showinfotext(self):
+        sansbold = pygame.font.Font("freesansbold.ttf", 32)
+
+        player1_string = "P1 SCORE: " + str(self.player1.score)
+        player1_score = sansbold.render(player1_string, True, (0, 0, 0))
+        self.screen.blit(player1_score, player1_score.get_rect(topleft=(10, HEIGHT - TILESIZE + 4)))
+
+        player2_string = "P2 SCORE: " + str(self.player2.score)
+        player2_score = sansbold.render(player2_string, True, (0, 0, 0))
+        self.screen.blit(player2_score, player2_score.get_rect(topleft=(WIDTH - 210, HEIGHT - TILESIZE + 4)))
+
+    def checkvictory(self):
+        if not (self.player1.winner or self.player2.winner):
+            return
+
+        winner = self.player1 if self.player1.winner else self.player2
+        self.showwinner(winner)
+
+        for player in self.players:
+            player.score = 0
+            player.winner = False
+            player.rect.topleft = (player.spawnpoint[0], player.spawnpoint[1])
+            player.invulnerable = False
+            player.image = Player.IMG[player.side]
+
+        self.paused = True
+        self.pause_time = time.time()
+
     def play(self):
         self.setup()
 
@@ -285,45 +346,7 @@ class Game:
                     pygame.quit()
                     sys.exit()
 
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_w:
-                        self.player1.up = True
-                    if event.key == pygame.K_a:
-                        self.player1.left = True
-                    if event.key == pygame.K_s:
-                        self.player1.down = True
-                    if event.key == pygame.K_d:
-                        self.player1.right = True
-
-                    if event.key == pygame.K_UP:
-                        self.player2.up = True
-                    if event.key == pygame.K_LEFT:
-                        self.player2.left = True
-                    if event.key == pygame.K_DOWN:
-                        self.player2.down = True
-                    if event.key == pygame.K_RIGHT:
-                        self.player2.right = True
-
-                elif event.type == pygame.KEYUP:
-                    if event.key == pygame.K_w:
-                        self.player1.up = False
-                    if event.key == pygame.K_a:
-                        self.player1.left = False
-                    if event.key == pygame.K_s:
-                        self.player1.down = False
-                    if event.key == pygame.K_d:
-                        self.player1.right = False
-
-                    if event.key == pygame.K_UP:
-                        self.player2.up = False
-                    if event.key == pygame.K_LEFT:
-                        self.player2.left = False
-                    if event.key == pygame.K_DOWN:
-                        self.player2.down = False
-                    if event.key == pygame.K_RIGHT:
-                        self.player2.right = False
-
-                elif event.type == pygame.JOYAXISMOTION:
+                elif event.type == pygame.JOYAXISMOTION and not self.paused:
                     if self.stick.get_axis(PLAYER1_HOR_AXIS) < -0.9:
                         self.player1.left = True
                     else:
@@ -344,40 +367,47 @@ class Game:
                     else:
                         self.player1.down = False
 
-                if self.stick.get_axis(PLAYER2_HOR_AXIS) < -0.9:
-                        self.player2.left = True
-                else:
-                    self.player2.left = False
+                    if self.stick.get_axis(PLAYER2_HOR_AXIS) < -0.9:
+                            self.player2.left = True
+                    else:
+                        self.player2.left = False
 
-                if self.stick.get_axis(PLAYER2_HOR_AXIS) > 0.9:
-                    self.player2.right = True
-                else:
-                    self.player2.right = False
+                    if self.stick.get_axis(PLAYER2_HOR_AXIS) > 0.9:
+                        self.player2.right = True
+                    else:
+                        self.player2.right = False
 
-                if self.stick.get_axis(PLAYER2_VER_AXIS) < -0.9:
-                    self.player2.up = True
-                else:
-                    self.player2.up = False
+                    if self.stick.get_axis(PLAYER2_VER_AXIS) < -0.9:
+                        self.player2.up = True
+                    else:
+                        self.player2.up = False
 
-                if self.stick.get_axis(PLAYER2_VER_AXIS) > 0.9:
-                    self.player2.down = True
-                else:
-                    self.player2.down = False
+                    if self.stick.get_axis(PLAYER2_VER_AXIS) > 0.9:
+                        self.player2.down = True
+                    else:
+                        self.player2.down = False
 
-            if len(self.stars) == 0:
+            if len(self.stars) == 0 and not self.paused:
                 self.stars.add(Star(random.randint(TILESIZE, WIDTH - TILESIZE),
                                     random.randint(TILESIZE, PLAY_HEIGHT - TILESIZE)))
 
-            self.tiles.update(dt)
-            self.players.update(dt, self.tiles, self.balls, self.stars)
-            self.balls.update(dt, self.tiles, self.balls)
-            self.stars.update(dt)
+            if not self.paused:
+                self.tiles.update(dt)
+                self.players.update(dt, self.tiles, self.balls, self.stars)
+                self.balls.update(dt, self.tiles, self.balls)
+                self.stars.update(dt)
 
-            self.screen.blit(self.background, (0, 0))
-            self.tiles.draw(self.screen)
-            self.balls.draw(self.screen)
-            self.stars.draw(self.screen)
-            self.players.draw(self.screen)
+                self.screen.blit(self.background, (0, 0))
+                self.tiles.draw(self.screen)
+                self.balls.draw(self.screen)
+                self.stars.draw(self.screen)
+                self.players.draw(self.screen)
+                self.showinfotext()
+
+                self.checkvictory()
+
+            if self.paused and time.time() - self.pause_time > PAUSETIME:
+                self.paused = False
 
             pygame.display.flip()
 
@@ -386,3 +416,62 @@ if __name__ == "__main__":
     Game().play()
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                # elif event.type == pygame.KEYDOWN:
+                #     if event.key == pygame.K_w:
+                #         self.player1.up = True
+                #     if event.key == pygame.K_a:
+                #         self.player1.left = True
+                #     if event.key == pygame.K_s:
+                #         self.player1.down = True
+                #     if event.key == pygame.K_d:
+                #         self.player1.right = True
+                #
+                #     if event.key == pygame.K_UP:
+                #         self.player2.up = True
+                #     if event.key == pygame.K_LEFT:
+                #         self.player2.left = True
+                #     if event.key == pygame.K_DOWN:
+                #         self.player2.down = True
+                #     if event.key == pygame.K_RIGHT:
+                #         self.player2.right = True
+                #
+                # elif event.type == pygame.KEYUP:
+                #     if event.key == pygame.K_w:
+                #         self.player1.up = False
+                #     if event.key == pygame.K_a:
+                #         self.player1.left = False
+                #     if event.key == pygame.K_s:
+                #         self.player1.down = False
+                #     if event.key == pygame.K_d:
+                #         self.player1.right = False
+                #
+                #     if event.key == pygame.K_UP:
+                #         self.player2.up = False
+                #     if event.key == pygame.K_LEFT:
+                #         self.player2.left = False
+                #     if event.key == pygame.K_DOWN:
+                #         self.player2.down = False
+                #     if event.key == pygame.K_RIGHT:
+                #         self.player2.right = False
