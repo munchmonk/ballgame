@@ -1,22 +1,78 @@
-# NEXT ON THE LIST:
-# add goals/victory
-# add intermediate goals to collect before being able to reach final goal
-
-
 import pygame
 import sys
 import math
+import random
+import time
 
 pygame.init()
 
 WIDTH = 800
 HEIGHT = 600
 TILESIZE = 40
+PLAYER1 = 0
+PLAYER2 = 1
+
+
+class Star(pygame.sprite.Sprite):
+    IMG = pygame.image.load("star.png")
+    STEP = 200
+    MINTIME = 1
+
+    def __init__(self, x, y, *groups):
+        super(Star, self).__init__(*groups)
+
+        self.image = Star.IMG
+        self.rect = self.image.get_rect(topleft=(x, y))
+
+        self.dx = random.random()
+        self.dy = 1 - self.dx
+
+        self.last_change = 0
+        self.next_change = Star.MINTIME + random.randint(1, 3)
+
+    def update(self, dt):
+        step_x = self.dx * Star.STEP * (dt / 1000.0)
+        step_y = self.dy * Star.STEP * (dt / 1000.0)
+        step_x = int(step_x) if step_x >= 1 else step_x
+        step_y = int(step_y) if step_y >= 1 else step_y
+        self.rect.x += step_x
+        self.rect.y += step_y
+
+        change = False
+
+        if time.time() - self.last_change >= self.next_change:
+            self.dx = random.random()
+            self.dy = 1 - self.dx
+            change = True
+
+        if self.rect.left <= TILESIZE:
+            self.rect.left = TILESIZE
+            self.dx *= -1
+            change = True
+
+        if self.rect.right >= WIDTH - TILESIZE:
+            self.rect.right = WIDTH - TILESIZE
+            self.dx *= -1
+            change = True
+
+        if self.rect.top <= TILESIZE:
+            self.rect.top = TILESIZE
+            self.dy *= -1
+            change = True
+
+        if self.rect.bottom >= HEIGHT - TILESIZE:
+            self.rect.bottom = HEIGHT - TILESIZE
+            self.dy *= -1
+            change = True
+
+        if change:
+            self.last_change = time.time()
+            self.next_change = Star.MINTIME + random.randint(1, 3)
 
 
 class Ball(pygame.sprite.Sprite):
     IMG = pygame.image.load("ball.png")
-    STEP = 300
+    STEP = 400
 
     def __init__(self, x, y, dx, dy, *groups):
         super(Ball, self).__init__(*groups)
@@ -27,7 +83,7 @@ class Ball(pygame.sprite.Sprite):
         self.dx = dx
         self.dy = dy
 
-    def update(self, dt, tiles):
+    def update(self, dt, tiles, balls):
         # X axis first
         # movement
         step_x = self.dx * Ball.STEP * (dt / 1000.0)
@@ -68,25 +124,41 @@ class Ball(pygame.sprite.Sprite):
             self.rect.bottom = HEIGHT
             self.dy *= -1
 
+        # collision with other balls
+        for ball in balls:
+            if ball == self:
+                continue
+            if ball.rect.colliderect(self.rect):
+                while ball.rect.colliderect(self.rect):
+                    self.rect.x += (-math.copysign(1, self.dx))
+                    self.rect.y += (-math.copysign(1, self.dy))
+                self.dx *= -1
+                self.dy *= -1
+                break
+
 
 class Player(pygame.sprite.Sprite):
-    IMG = pygame.image.load("player1.png")
-    STEP = 100
+    IMG = {PLAYER1: pygame.image.load("player1.png"),
+           PLAYER2: pygame.image.load("player2.png")}
+    STEP = 160
 
-    def __init__(self, x, y, *groups):
+    def __init__(self, x, y, side, *groups):
         super(Player, self).__init__(*groups)
 
-        self.image = Player.IMG
+        self.image = Player.IMG[side]
         self.rect = self.image.get_rect(topleft=(x, y))
 
         self.spawnpoint = (x, y)
+        self.side = side
 
         self.left = False
         self.right = False
         self.up = False
         self.down = False
 
-    def update(self, dt, tiles, balls):
+        self.points = 0
+
+    def update(self, dt, tiles, balls, stars):
         step = Player.STEP * (dt / 1000.0)
         step = int(step) if step >= 1 else step
 
@@ -120,6 +192,12 @@ class Player(pygame.sprite.Sprite):
 
         if pygame.sprite.spritecollide(self, balls, False):
             self.rect.topleft = (self.spawnpoint[0], self.spawnpoint[1])
+            self.points = 0
+
+        if pygame.sprite.spritecollide(self, stars, True):
+            self.points += 1
+            if self.points >= 3:
+                print("VICTORY!!!")
 
 
 class Tile(pygame.sprite.Sprite):
@@ -133,7 +211,7 @@ class Tile(pygame.sprite.Sprite):
 
 
 class Game:
-    FPS = 30
+    FPS = 60
 
     def __init__(self):
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -145,6 +223,7 @@ class Game:
         self.player1 = None
         self.player2 = None
         self.balls = pygame.sprite.Group()
+        self.stars = pygame.sprite.Group()
 
         self.clock = pygame.time.Clock()
 
@@ -165,8 +244,11 @@ class Game:
                 if char == "#":
                     self.tiles.add(Tile(x, y))
                 if char == "1":
-                    self.player1 = Player(x, y)
+                    self.player1 = Player(x, y, PLAYER1)
                     self.players.add(self.player1)
+                if char == "2":
+                    self.player2 = Player(x, y, PLAYER2)
+                    self.players.add(self.player2)
                 if char == "h":
                     self.balls.add(Ball(x, y, -1, 0))
                 if char == "H":
@@ -175,12 +257,13 @@ class Game:
                     self.balls.add(Ball(x, y, 0, -1))
                 if char == "V":
                     self.balls.add(Ball(x, y, 0, 1))
+                if char == "r":
+                    dx = random.random()
+                    dy = 1 - dx
+                    self.balls.add(Ball(x, y, dx, dy))
                 x += TILESIZE
             x = 0
             y += TILESIZE
-
-
-
 
     def play(self):
         self.setup()
@@ -202,6 +285,15 @@ class Game:
                     if event.key == pygame.K_d:
                         self.player1.right = True
 
+                    if event.key == pygame.K_UP:
+                        self.player2.up = True
+                    if event.key == pygame.K_LEFT:
+                        self.player2.left = True
+                    if event.key == pygame.K_DOWN:
+                        self.player2.down = True
+                    if event.key == pygame.K_RIGHT:
+                        self.player2.right = True
+
                 elif event.type == pygame.KEYUP:
                     if event.key == pygame.K_w:
                         self.player1.up = False
@@ -212,16 +304,29 @@ class Game:
                     if event.key == pygame.K_d:
                         self.player1.right = False
 
+                    if event.key == pygame.K_UP:
+                        self.player2.up = False
+                    if event.key == pygame.K_LEFT:
+                        self.player2.left = False
+                    if event.key == pygame.K_DOWN:
+                        self.player2.down = False
+                    if event.key == pygame.K_RIGHT:
+                        self.player2.right = False
 
+            if len(self.stars) == 0:
+                self.stars.add(Star(random.randint(TILESIZE, WIDTH - TILESIZE),
+                                    random.randint(TILESIZE, HEIGHT - TILESIZE)))
 
             self.tiles.update(dt)
-            self.players.update(dt, self.tiles, self.balls)
-            self.balls.update(dt, self.tiles)
+            self.players.update(dt, self.tiles, self.balls, self.stars)
+            self.balls.update(dt, self.tiles, self.balls)
+            self.stars.update(dt)
 
             self.screen.blit(self.background, (0, 0))
             self.tiles.draw(self.screen)
-            self.players.draw(self.screen)
             self.balls.draw(self.screen)
+            self.stars.draw(self.screen)
+            self.players.draw(self.screen)
 
             pygame.display.flip()
 
