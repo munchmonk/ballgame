@@ -1,3 +1,5 @@
+# next: use shield (golden)
+
 # steal 1
 # remove all (no steal)
 # shield
@@ -347,6 +349,7 @@ class Game:
 
                 self.checkvictory()
 
+            # Unpause
             if self.paused and time.time() - self.pause_time > const.PAUSETIME:
                 self.paused = False
 
@@ -415,7 +418,8 @@ class Star(pygame.sprite.Sprite):
 class Player(pygame.sprite.Sprite):
     IMG = {const.PLAYER1: pygame.image.load("player1.png"),
            const.PLAYER2: pygame.image.load("player2.png"),
-           const.INVIS:   pygame.image.load("invis_player.png")}
+           const.INVIS:   pygame.image.load("invis_player.png"),
+           const.GOLDEN:  pygame.image.load("golden_player.png")}
     STEP = 220
     INV_TIME = 2.2
     BLINK_INTERVAL = 0.2
@@ -438,6 +442,7 @@ class Player(pygame.sprite.Sprite):
         self.right = False
         self.up = False
         self.down = False
+
         self.use_powerup = False
         self.current_step = Player.STEP
         self.slow_start = 0
@@ -490,6 +495,9 @@ class Player(pygame.sprite.Sprite):
                     if player.side != self.side:
                         player.current_step /= 2
                         player.slow_start = time.time()
+
+            if self.powerup == Powerup.TYPE[Powerup.SHIELD]:
+                pass  # -------------------------------------------------------------------------------------------
 
             self.use_powerup = False
             self.powerup = None
