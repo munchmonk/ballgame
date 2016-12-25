@@ -148,8 +148,8 @@ class Player(pygame.sprite.Sprite):
     IMG = {PLAYER1: pygame.image.load("player1.png"),
            PLAYER2: pygame.image.load("player2.png"),
            INVIS:   pygame.image.load("invis_player.png")}
-    STEP = 160
-    INV_TIME = 240
+    STEP = 260
+    INV_TIME = 2.2
     BLINK_INTERVAL = 0.2
 
     def __init__(self, x, y, side, *groups):
@@ -305,7 +305,7 @@ class Game:
         if player.side == PLAYER2:
             winner_string += "2 wins!!!"
 
-        final = sansbold.render(winner_string, True, (0, 0, 0))
+        final = sansbold.render(winner_string, True, (255, 0, 0))
         self.screen.blit(final, final.get_rect(center=(WIDTH // 2, HEIGHT // 2)))
 
     def showinfotext(self):
