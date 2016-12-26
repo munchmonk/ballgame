@@ -1,4 +1,4 @@
-# next: use shield (golden)
+# next: steal, running punteggio vittorie
 
 # steal 1
 # remove all (no steal)
@@ -13,22 +13,6 @@ import random
 import time
 
 import const
-
-
-class Powerup(pygame.sprite.Sprite):
-    INTERVAL = 7
-    SHIELD = 0
-    TIME = 1
-    TYPE = [SHIELD, TIME]
-    IMG = {SHIELD: pygame.image.load("shield.png"),
-           TIME: pygame.image.load("time.png")}
-
-    def __init__(self, x, y, powerup_type, *groups):
-        super(Powerup, self).__init__(*groups)
-
-        self.image = Powerup.IMG[powerup_type]
-        self.rect = self.image.get_rect(topleft=(x, y))
-        self.powerup_type = powerup_type
 
 
 class Ball(pygame.sprite.Sprite):
@@ -134,7 +118,7 @@ class Game:
 
         # Music
         pygame.mixer.music.load("background_music.wav")
-        pygame.mixer.music.set_volume(0.3)
+        pygame.mixer.music.set_volume(0.2)
         pygame.mixer.music.play(-1, 0.0)
 
         # Joystick
@@ -198,24 +182,28 @@ class Game:
         sansbold = pygame.font.Font("freesansbold.ttf", 28)
 
         # Player 1
-        player1_string = "SCORE: " + str(self.player1.score) + "   P/UP: "
+        player1_string = "STARS: " + str(self.player1.score) + "   P/UP: "
         if self.player1.powerup is None:
             player1_string += "N/A"
         if self.player1.powerup == Powerup.TYPE[Powerup.SHIELD]:
             player1_string += "SHIELD"
         if self.player1.powerup == Powerup.TYPE[Powerup.TIME]:
-            player1_string += "TIME"
+            player1_string += "SLOW"
+        if self.player1.powerup == Powerup.TYPE[Powerup.BOLT]:
+            player1_string += "BOLT"
         player1_score = sansbold.render(player1_string, True, (0, 0, 0))
         self.screen.blit(player1_score, player1_score.get_rect(topleft=(10, const.HEIGHT - const.TILESIZE + 4)))
 
         # Player 2
-        player2_string = "SCORE: " + str(self.player2.score) + "   P/UP: "
+        player2_string = "STARS: " + str(self.player2.score) + "   P/UP: "
         if self.player2.powerup is None:
             player2_string += "N/A"
         if self.player2.powerup == Powerup.TYPE[Powerup.SHIELD]:
             player2_string += "SHIELD"
         if self.player2.powerup == Powerup.TYPE[Powerup.TIME]:
-            player2_string += "TIME"
+            player2_string += "SLOW"
+        if self.player2.powerup == Powerup.TYPE[Powerup.BOLT]:
+            player2_string += "BOLT"
         player2_score = sansbold.render(player2_string, True, (0, 0, 0))
         self.screen.blit(player2_score, player2_score.get_rect(topleft=(const.WIDTH - 360, const.HEIGHT - const.TILESIZE + 4)))
 
@@ -235,6 +223,8 @@ class Game:
             player.image = Player.IMG[player.side]
             player.current_step = Player.STEP
             player.slow_start = 0
+            player.golden = False
+            player.golden_start = 0
 
         self.paused = True
         self.pause_time = time.time()
@@ -361,7 +351,7 @@ class Star(pygame.sprite.Sprite):
     STEP = 200
     MINTIME = 1
     PICKUP_SOUND = pygame.mixer.Sound("star_pickup.wav")
-    PICKUP_SOUND.set_volume(0.9)
+    PICKUP_SOUND.set_volume(1.0)
 
     def __init__(self, x, y, *groups):
         super(Star, self).__init__(*groups)
@@ -423,7 +413,8 @@ class Player(pygame.sprite.Sprite):
     STEP = 220
     INV_TIME = 2.2
     BLINK_INTERVAL = 0.2
-    SLOWED_TIME = 5
+    SLOWED_TIME = 7
+    GOLDEN_TIME = 5
     DEATH_SOUND = pygame.mixer.Sound("death.wav")
     DEATH_SOUND.set_volume(0.2)
     VICTORY_SOUND = pygame.mixer.Sound("victory.wav")
@@ -446,6 +437,8 @@ class Player(pygame.sprite.Sprite):
         self.use_powerup = False
         self.current_step = Player.STEP
         self.slow_start = 0
+        self.golden = False
+        self.golden_start = 0
 
         self.score = 0
         self.winner = False
@@ -489,15 +482,25 @@ class Player(pygame.sprite.Sprite):
 
         # Using powerups
         if self.use_powerup:
-            print("BAAAAAAANG!!!" + str(self.powerup))
+            # Time
             if self.powerup == Powerup.TYPE[Powerup.TIME]:
                 for player in players:
                     if player.side != self.side:
                         player.current_step /= 2
                         player.slow_start = time.time()
-
+                Powerup.SOUND[Powerup.TIME].play()
+            # Shield
             if self.powerup == Powerup.TYPE[Powerup.SHIELD]:
-                pass  # -------------------------------------------------------------------------------------------
+                self.golden = True
+                self.image = Player.IMG[const.GOLDEN]
+                self.golden_start = time.time()
+                Powerup.SOUND[Powerup.SHIELD].play()
+            # Bolt
+            if self.powerup == Powerup.TYPE[Powerup.BOLT]:
+                for player in players:
+                    if player.side != self.side:
+                        player.score = 0
+                Powerup.SOUND[Powerup.BOLT].play()
 
             self.use_powerup = False
             self.powerup = None
@@ -505,6 +508,11 @@ class Player(pygame.sprite.Sprite):
         # Slowed
         if self.current_step < Player.STEP and time.time() - self.slow_start >= Player.SLOWED_TIME:
             self.current_step = Player.STEP
+
+        # Golden
+        if self.golden and time.time() - self.golden_start >= Player.GOLDEN_TIME:
+            self.golden = False
+            self.image = Player.IMG[self.side]
 
         # Invulnerability time over
         if self.invulnerable and time.time() - self.invulnerable_time >= Player.INV_TIME:
@@ -517,7 +525,7 @@ class Player(pygame.sprite.Sprite):
             self.invulnerable_blink = time.time()
 
         # Collision with balls
-        if pygame.sprite.spritecollide(self, balls, False) and not self.invulnerable:
+        if pygame.sprite.spritecollide(self, balls, False) and not (self.invulnerable or self.golden):
             Player.DEATH_SOUND.play()
             self.rect.topleft = (self.spawnpoint[0], self.spawnpoint[1])
             self.score = 0
@@ -526,6 +534,8 @@ class Player(pygame.sprite.Sprite):
             self.invulnerable_time = time.time()
             self.invulnerable_blink = 0
             self.current_step = Player.STEP
+            self.golden = False
+            self.golden_start = 0
 
         # Collision with stars
         if pygame.sprite.spritecollide(self, stars, True):
@@ -540,6 +550,30 @@ class Player(pygame.sprite.Sprite):
                 self.powerup = powerup.powerup_type
                 powerups.remove(powerup)
                 break
+
+
+class Powerup(pygame.sprite.Sprite):
+    INTERVAL = 7
+    SHIELD = 0
+    TIME = 1
+    BOLT = 2
+    TYPE = [SHIELD, TIME, BOLT]
+    IMG = {SHIELD: pygame.image.load("shield.png"),
+           TIME:   pygame.image.load("time.png"),
+           BOLT:   pygame.image.load("bolt.png")}
+    SOUND = {SHIELD: pygame.mixer.Sound("shield.wav"),
+             TIME:   pygame.mixer.Sound("time.wav"),
+             BOLT:   pygame.mixer.Sound("bolt.wav")}
+    SOUND[SHIELD].set_volume(0.7)
+    SOUND[TIME].set_volume(0.7)
+    SOUND[BOLT].set_volume(0.9)
+
+    def __init__(self, x, y, powerup_type, *groups):
+        super(Powerup, self).__init__(*groups)
+
+        self.image = Powerup.IMG[powerup_type]
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.powerup_type = powerup_type
 
 
 if __name__ == "__main__":
